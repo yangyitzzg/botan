@@ -38,10 +38,12 @@ class BOTAN_TEST_API Handshake_State_13_Base
       const Hello_Retry_Request&    hello_retry_request() const { return get(m_hello_retry_request); }
       const Encrypted_Extensions&   encrypted_extensions() const { return get(m_encrypted_extensions); }
       const Certificate_Request_13& certificate_request() const { return get(m_certificate_request); }
-      const Certificate_13&         certificate() const { return get(m_server_certs); }
-      const Certificate_Verify_13&  certificate_verify() const { return get(m_server_verify); }
-      const Finished_13&            client_finished() const { return get(m_client_finished); }
+      const Certificate_13&         server_certificate() const { return get(m_server_certificate); }
+      const Certificate_13&         client_certificate() const { return get(m_client_certificate); }
+      const Certificate_Verify_13&  server_certificate_verify() const { return get(m_server_certificate_verify); }
+      const Certificate_Verify_13&  client_certificate_verify() const { return get(m_client_certificate_verify); }
       const Finished_13&            server_finished() const { return get(m_server_finished); }
+      const Finished_13&            client_finished() const { return get(m_client_finished); }
 
    protected:
       Handshake_State_13_Base(Connection_Side whoami) : m_side(whoami) {}
@@ -81,8 +83,10 @@ class BOTAN_TEST_API Handshake_State_13_Base
       std::optional<Hello_Retry_Request> m_hello_retry_request;
       std::optional<Encrypted_Extensions> m_encrypted_extensions;
       std::optional<Certificate_Request_13> m_certificate_request;
-      std::optional<Certificate_13> m_server_certs;
-      std::optional<Certificate_Verify_13> m_server_verify;
+      std::optional<Certificate_13> m_server_certificate;
+      std::optional<Certificate_13> m_client_certificate;
+      std::optional<Certificate_Verify_13> m_server_certificate_verify;
+      std::optional<Certificate_Verify_13> m_client_certificate_verify;
       std::optional<Finished_13> m_server_finished;
       std::optional<Finished_13> m_client_finished;
    };

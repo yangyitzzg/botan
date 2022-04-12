@@ -408,7 +408,7 @@ void Client_Impl_13::handle(const Certificate_Verify_13& certificate_verify_msg)
       }
 
    bool sig_valid = certificate_verify_msg.verify(
-                       m_handshake_state.certificate().cert_chain().front().certificate,
+                       m_handshake_state.server_certificate().leaf(),
                        callbacks(),
                        m_transcript_hash.previous());
 
@@ -435,29 +435,37 @@ void Client_Impl_13::handle(const Finished_13& finished_msg)
       {
       const auto& cert_request = m_handshake_state.certificate_request();
 
-      std::vector<std::string> supported_schemes;
+      std::vector<std::string> peer_allowed_signature_algos;
       for (const auto& scheme : cert_request.signature_schemes())
-         { supported_schemes.push_back(signature_algorithm_of_scheme(scheme)); }
+         { peer_allowed_signature_algos.push_back(signature_algorithm_of_scheme(scheme)); }
 
       std::vector<X509_Certificate> client_certs = credentials_manager().find_cert_chain(
-            supported_schemes,
+            peer_allowed_signature_algos,
             cert_request.acceptable_CAs(),
             "tls-client",
             m_info.hostname());
 
       flight.add(m_handshake_state.sending(Certificate_13(std::move(client_certs))));
 
+      // TODO: empty certs are allowed if no certificate is found -- don't fail
       BOTAN_ASSERT_NOMSG(!client_certs.empty());
 
-      Private_Key* private_key =
-         credentials_manager().private_key_for(client_certs.front(),
-                                 "tls-client",
-                                 m_info.hostname());
+      Private_Key* private_key = credentials_manager().private_key_for(
+            m_handshake_state.client_certificate().leaf(),
+            "tls-client",
+            m_info.hostname());
+
 
       BOTAN_ASSERT_NOMSG(private_key);
 
       flight.add(m_handshake_state.sending(Certificate_Verify_13(
-         m_transcript_hash.current(), *private_key, policy(), callbacks(), rng()
+         cert_request.signature_schemes(),
+         Connection_Side::CLIENT,
+         *private_key,
+         policy(),
+         m_transcript_hash.current(),
+         callbacks(),
+         rng()
       )));
       }
 

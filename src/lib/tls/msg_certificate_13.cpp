@@ -47,6 +47,12 @@ void Certificate_13::validate_extensions(const std::set<Handshake_Extension_Type
          { throw TLS_Exception(Alert::ILLEGAL_PARAMETER, "Certificate Entry contained an extension that was not offered"); }
    }
 
+const X509_Certificate& Certificate_13::leaf() const
+   {
+   BOTAN_STATE_CHECK(!empty());
+   return m_entries.front().certificate;
+   }
+
 void Certificate_13::verify(Callbacks& callbacks,
                             const Policy& policy,
                             Credentials_Manager& creds,

@@ -47,16 +47,22 @@ Certificate_Request_13& Handshake_State_13_Base::store(Certificate_Request_13 ce
 }
 
 
-Certificate_13& Handshake_State_13_Base::store(Certificate_13 certificate, const bool)
+Certificate_13& Handshake_State_13_Base::store(Certificate_13 certificate, const bool from_peer)
 {
-    m_server_certs = std::move(certificate);
-    return m_server_certs.value();
+   auto& target = ((m_side == CLIENT) == from_peer)
+          ? m_server_certificate
+          : m_client_certificate;
+   target = std::move(certificate);
+   return target.value();
 }
 
-Certificate_Verify_13& Handshake_State_13_Base::store(Certificate_Verify_13 certificate_verify, const bool)
+Certificate_Verify_13& Handshake_State_13_Base::store(Certificate_Verify_13 certificate_verify, const bool from_peer)
 {
-    m_server_verify = std::move(certificate_verify);
-    return m_server_verify.value();
+   auto& target = ((m_side == CLIENT) == from_peer)
+          ? m_server_certificate_verify
+          : m_client_certificate_verify;
+   target = std::move(certificate_verify);
+   return target.value();
 }
 
 Finished_13& Handshake_State_13_Base::store(Finished_13 finished, const bool from_peer)

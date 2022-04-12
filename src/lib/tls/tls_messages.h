@@ -494,6 +494,7 @@ class BOTAN_UNSTABLE_API Certificate_13 final : public Handshake_Message
 
       size_t count() const { return m_entries.size(); }
       bool empty() const { return m_entries.empty(); }
+      const X509_Certificate& leaf() const;
 
       /**
        * Create a Certificate message
@@ -679,11 +680,14 @@ class BOTAN_UNSTABLE_API Certificate_Verify_13 final : public Certificate_Verify
       Certificate_Verify_13(const std::vector<uint8_t>& buf,
                             const Connection_Side side);
 
-      Certificate_Verify_13(const Transcript_Hash& hash,
-                            const Private_Key& key,
-                            const Policy& policy,
-                            Callbacks& callbacks,
-                            RandomNumberGenerator& rng);
+      Certificate_Verify_13(
+            const std::vector<Signature_Scheme>& peer_allowed_schemes,
+            Connection_Side whoami,
+            const Private_Key& key,
+            const Policy& policy,
+            const Transcript_Hash& hash,
+            Callbacks& callbacks,
+            RandomNumberGenerator& rng);
 
       bool verify(const X509_Certificate& cert,
                   Callbacks& callbacks,

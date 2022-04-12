@@ -40,7 +40,7 @@ class Channel_Impl_13 : public Channel_Impl
             AggregatedMessages(AggregatedMessages&&) = delete;
             AggregatedMessages& operator=(AggregatedMessages&&) = delete;
 
-            ~AggregatedMessages();
+            ~AggregatedMessages() = default;
 
             /**
              * Adds a single handshake message to the send buffer. Note that this

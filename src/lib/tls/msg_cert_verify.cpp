@@ -8,6 +8,7 @@
 * Botan is released under the Simplified BSD License (see license.txt)
 */
 
+#include "botan/internal/stl_util.h"
 #include <botan/tls_messages.h>
 
 #include <botan/internal/tls_handshake_io.h>
@@ -41,16 +42,49 @@ Certificate_Verify_12::Certificate_Verify_12(Handshake_IO& io,
    }
 
 
-Certificate_Verify_13::Certificate_Verify_13(const Transcript_Hash& hash,
-                                             const Private_Key& key,
-                                             const Policy&,
-                                             Callbacks& callbacks,
-                                             RandomNumberGenerator& rng)
-{
-   // TODO: figure out the padding and signature format
-   m_scheme = Signature_Scheme::RSA_PSS_SHA256;
-   m_signature = callbacks.tls_sign_message(key, rng, "lol", Signature_Format::DER_SEQUENCE, hash);
+namespace {
+
+Signature_Scheme choose_signature_scheme(
+      const Private_Key& key,
+      const std::vector<Signature_Scheme>& allowed_schemes,
+      const std::vector<Signature_Scheme>& peer_allowed_schemes)
+   {
+   const std::string signature_algorithm = key.algo_name();
+
+   for(Signature_Scheme scheme : allowed_schemes)
+      {
+      if(signature_scheme_is_known(scheme)
+         && signature_algorithm_of_scheme(scheme) == signature_algorithm
+         && value_exists(peer_allowed_schemes, scheme))
+         {
+         return scheme;
+         }
+      }
+
+   throw TLS_Exception(Alert::HANDSHAKE_FAILURE, "Failed to agree on a signature algorithm");
+   }
+
 }
+
+Certificate_Verify_13::Certificate_Verify_13(
+      const std::vector<Signature_Scheme>& peer_allowed_schemes,
+      Connection_Side whoami,
+      const Private_Key& key,
+      const Policy& policy,
+      const Transcript_Hash& hash,
+      Callbacks& callbacks,
+      RandomNumberGenerator& rng)
+   : m_side(whoami)
+   {
+   m_scheme = choose_signature_scheme(key, policy.allowed_signature_schemes(), peer_allowed_schemes);
+
+   m_signature =
+      callbacks.tls_sign_message(key,
+                                 rng,
+                                 padding_string_for_scheme(m_scheme),
+                                 signature_format_of_scheme(m_scheme),
+                                 hash);
+   }
 
 /*
 * Deserialize a Certificate Verify message
@@ -121,7 +155,7 @@ bool Certificate_Verify_12::verify(const X509_Certificate& cert,
 #if defined(BOTAN_HAS_TLS_13)
 
 Certificate_Verify_13::Certificate_Verify_13(const std::vector<uint8_t>& buf,
-      const Connection_Side side)
+                                             const Connection_Side side)
    : Certificate_Verify(buf)
    , m_side(side)
    {
