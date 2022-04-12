@@ -37,7 +37,7 @@ Client_Impl_13::Client_Impl_13(Callbacks& callbacks,
       { expect_downgrade(info); }
 #endif
 
-   auto msg = send_handshake_message(m_handshake_state.sent(Client_Hello_13(
+   auto msg = send_handshake_message(m_handshake_state.sending(Client_Hello_13(
                              policy,
                              callbacks,
                              rng,
@@ -445,7 +445,7 @@ void Client_Impl_13::handle(const Finished_13& finished_msg)
             "tls-client",
             m_info.hostname());
 
-      flight.add(m_handshake_state.sent(Certificate_13(std::move(client_certs))));
+      flight.add(m_handshake_state.sending(Certificate_13(std::move(client_certs))));
 
       BOTAN_ASSERT_NOMSG(!client_certs.empty());
 
@@ -456,13 +456,13 @@ void Client_Impl_13::handle(const Finished_13& finished_msg)
 
       BOTAN_ASSERT_NOMSG(private_key);
 
-      flight.add(m_handshake_state.sent(Certificate_Verify_13(
+      flight.add(m_handshake_state.sending(Certificate_Verify_13(
          m_transcript_hash.current(), *private_key, policy(), callbacks(), rng()
       )));
       }
 
    // send client finished handshake message (still using handshake traffic secrets)
-   flight.add(m_handshake_state.sent(Finished_13(m_cipher_state.get(),
+   flight.add(m_handshake_state.sending(Finished_13(m_cipher_state.get(),
                                                  m_transcript_hash.current())));
 
    flight.send();
