@@ -345,6 +345,7 @@ std::string signature_algorithm_of_scheme(Signature_Scheme scheme)
    {
    switch(scheme)
       {
+      case Signature_Scheme::RSA_PKCS1_SHA1:
       case Signature_Scheme::RSA_PKCS1_SHA256:
       case Signature_Scheme::RSA_PKCS1_SHA384:
       case Signature_Scheme::RSA_PKCS1_SHA512:
@@ -353,6 +354,7 @@ std::string signature_algorithm_of_scheme(Signature_Scheme scheme)
       case Signature_Scheme::RSA_PSS_SHA512:
          return "RSA";
 
+      case Signature_Scheme::ECDSA_SHA1:
       case Signature_Scheme::ECDSA_SHA256:
       case Signature_Scheme::ECDSA_SHA384:
       case Signature_Scheme::ECDSA_SHA512:
@@ -364,15 +366,11 @@ std::string signature_algorithm_of_scheme(Signature_Scheme scheme)
       case Signature_Scheme::EDDSA_448:
          return "Ed448";
 
+      case Signature_Scheme::DSA_SHA1:
       case Signature_Scheme::DSA_SHA256:
       case Signature_Scheme::DSA_SHA384:
       case Signature_Scheme::DSA_SHA512:
-         throw Invalid_State("signature_algorithm_of_scheme: DSA signature scheme not supported");
-
-      case Signature_Scheme::DSA_SHA1:
-      case Signature_Scheme::ECDSA_SHA1:
-      case Signature_Scheme::RSA_PKCS1_SHA1:
-         throw Invalid_State("signature_algorithm_of_scheme: SHA1-based signature scheme not considered safe");
+         return "DSA";
 
       case Signature_Scheme::NONE:
          return "";

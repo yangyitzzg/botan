@@ -40,6 +40,13 @@ Encrypted_Extensions& Handshake_State_13_Base::store(Encrypted_Extensions encryp
     return m_encrypted_extensions.value();
 }
 
+Certificate_Request_13& Handshake_State_13_Base::store(Certificate_Request_13 certificate_request, const bool)
+{
+   m_certificate_request = std::move(certificate_request);
+   return m_certificate_request.value();
+}
+
+
 Certificate_13& Handshake_State_13_Base::store(Certificate_13 certificate, const bool)
 {
     m_server_certs = std::move(certificate);

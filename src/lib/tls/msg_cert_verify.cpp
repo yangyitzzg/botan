@@ -22,11 +22,11 @@ namespace Botan::TLS {
 /*
 * Create a new Certificate Verify message
 */
-Certificate_Verify::Certificate_Verify(Handshake_IO& io,
-                                       Handshake_State& state,
-                                       const Policy& policy,
-                                       RandomNumberGenerator& rng,
-                                       const Private_Key* priv_key)
+Certificate_Verify_12::Certificate_Verify_12(Handshake_IO& io,
+                                             Handshake_State& state,
+                                             const Policy& policy,
+                                             RandomNumberGenerator& rng,
+                                             const Private_Key* priv_key)
    {
    BOTAN_ASSERT_NONNULL(priv_key);
 
@@ -39,6 +39,18 @@ Certificate_Verify::Certificate_Verify(Handshake_IO& io,
 
    state.hash().update(io.send(*this));
    }
+
+
+Certificate_Verify_13::Certificate_Verify_13(const Transcript_Hash& hash,
+                                             const Private_Key& key,
+                                             const Policy&,
+                                             Callbacks& callbacks,
+                                             RandomNumberGenerator& rng)
+{
+   // TODO: figure out the padding and signature format
+   m_scheme = Signature_Scheme::RSA_PSS_SHA256;
+   m_signature = callbacks.tls_sign_message(key, rng, "lol", Signature_Format::DER_SEQUENCE, hash);
+}
 
 /*
 * Deserialize a Certificate Verify message

@@ -93,8 +93,8 @@ std::optional<Msg_Type> parse_message(TLS::TLS_Data_Reader& reader, const Policy
             return Encrypted_Extensions(msg);
          case CERTIFICATE:
             return Certificate_13(msg, policy, peer_side);
-         // case CERTIFICATE_REQUEST:
-         //    return Certificate_Req_13(msg);
+         case CERTIFICATE_REQUEST:
+            return Certificate_Request_13(msg, peer_side);
          case CERTIFICATE_VERIFY:
             return Certificate_Verify_13(msg, peer_side);
          case FINISHED:

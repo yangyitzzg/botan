@@ -211,7 +211,13 @@ void Channel_Impl_13::send_handshake_message(const Handshake_Message_13_Ref mess
    if(expects_downgrade() && std::holds_alternative<std::reference_wrapper<Client_Hello_13>>(message))
       { preserve_client_hello(msg); }
 
-   send_record(Record_Type::HANDSHAKE, msg);
+   m_msg_buf.insert(m_msg_buf.end(), msg.begin(), msg.end());
+   }
+
+void Channel_Impl_13::send_buffered_handshake_messages()
+   {
+   send_record(Record_Type::HANDSHAKE, m_msg_buf);
+   m_msg_buf.clear();
    }
 
 void Channel_Impl_13::send_post_handshake_message(const Post_Handshake_Message_13 message)

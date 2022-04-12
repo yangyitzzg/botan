@@ -44,6 +44,8 @@ Client_Impl_13::Client_Impl_13(Callbacks& callbacks,
                              m_info.hostname(),
                              next_protocols)));
 
+   send_buffered_handshake_messages();
+
    // RFC 8446 Appendix D.4
    //    If not offering early data, the client sends a dummy change_cipher_spec
    //    record [...] immediately before its second flight. This may either be before
@@ -311,6 +313,8 @@ void Client_Impl_13::handle(const Hello_Retry_Request& hrr)
 
    send_handshake_message(ch);
 
+   send_buffered_handshake_messages();
+
    // RFC 8446 4.1.4
    //    If a client receives a second HelloRetryRequest in the same connection [...],
    //    it MUST abort the handshake with an "unexpected_message" alert.
@@ -358,6 +362,19 @@ void Client_Impl_13::handle(const Encrypted_Extensions& encrypted_extensions_msg
       {
       m_transitions.set_expected_next({CERTIFICATE, CERTIFICATE_REQUEST});
       }
+   }
+
+void Client_Impl_13::handle(const Certificate_Request_13& certificate_request_msg)
+   {
+   // RFC 8446 4.3.2
+   //    [The 'context' field] SHALL be zero length unless used for the
+   //    post-handshake authentication exchanges described in Section 4.6.2.
+   if(!m_handshake_state.handshake_finished() && !certificate_request_msg.context().empty())
+      {
+      throw TLS_Exception(Alert::ILLEGAL_PARAMETER, "Certificate_Request context must be empty in the main handshake");
+      }
+
+   m_transitions.set_expected_next(CERTIFICATE);
    }
 
 void Client_Impl_13::handle(const Certificate_13& certificate_msg)
@@ -412,9 +429,42 @@ void Client_Impl_13::handle(const Finished_13& finished_msg)
                            m_transcript_hash.previous()))
       { throw TLS_Exception(Alert::DECRYPT_ERROR, "Finished message didn't verify"); }
 
+   // send the client certificate if it was requested
+   if(m_handshake_state.has_certificate_request())
+      {
+      const auto& cert_request = m_handshake_state.certificate_request();
+
+      std::vector<std::string> supported_schemes;
+      for (const auto& scheme : cert_request.signature_schemes())
+         { supported_schemes.push_back(signature_algorithm_of_scheme(scheme)); }
+
+      std::vector<X509_Certificate> client_certs = credentials_manager().find_cert_chain(
+            supported_schemes,
+            cert_request.acceptable_CAs(),
+            "tls-client",
+            m_info.hostname());
+
+      send_handshake_message(m_handshake_state.sent(Certificate_13(std::move(client_certs))));
+
+      BOTAN_ASSERT_NOMSG(!client_certs.empty());
+
+      Private_Key* private_key =
+         credentials_manager().private_key_for(client_certs.front(),
+                                 "tls-client",
+                                 m_info.hostname());
+
+      BOTAN_ASSERT_NOMSG(private_key);
+
+      send_handshake_message(m_handshake_state.sent(Certificate_Verify_13(
+         m_transcript_hash.current(), *private_key, policy(), callbacks(), rng()
+      )));
+      }
+
    // send client finished handshake message (still using handshake traffic secrets)
    send_handshake_message(m_handshake_state.sent(Finished_13(m_cipher_state.get(),
                           m_transcript_hash.current())));
+
+   send_buffered_handshake_messages();
 
    // derives the application traffic secrets and _replaces_ the handshake traffic secrets
    // Note: this MUST happen AFTER the client finished message was sent!

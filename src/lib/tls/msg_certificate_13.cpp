@@ -90,6 +90,13 @@ void Certificate_13::verify(Callbacks& callbacks,
    callbacks.tls_verify_cert_chain(certs, ocsp_responses, trusted_CAs, usage, hostname, policy);
    }
 
+Certificate_13::Certificate_13(const std::vector<X509_Certificate>& certs)
+   {
+   // TODO: proper extensions
+   for (const auto& c : certs)
+      { m_entries.emplace_back(Certificate_Entry{c, Extensions()}); }
+   }
+
 /**
 * Deserialize a Certificate message
 */
@@ -155,7 +162,7 @@ Certificate_13::Certificate_13(const std::vector<uint8_t>& buf,
       //    message as well.
       if(entry.extensions.contains_implemented_extensions_other_than({
             TLSEXT_CERT_STATUS_REQUEST,
-            // SIGNED_CERTIFICATE_TIMESTAMP
+            // TLSEXT_SIGNED_CERTIFICATE_TIMESTAMP
          }))
          {
          throw TLS_Exception(Alert::ILLEGAL_PARAMETER, "Certificate Entry contained an extension that is not allowed");

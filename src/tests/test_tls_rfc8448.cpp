@@ -38,6 +38,7 @@
    #include <botan/tls_session.h>
    #include <botan/tls_session_manager.h>
    #include <botan/tls_version.h>
+   #include <botan/pk_algs.h>
 
    #include <botan/assert.h>
    #include <botan/internal/stl_util.h>
@@ -62,16 +63,6 @@ void add_entropy(Botan_Tests::Fixed_Output_RNG& rng, const std::string& hex)
    {
    std::vector<uint8_t> in = Botan::hex_decode(hex);
    rng.add_entropy(in.data(), in.size());
-   }
-
-Botan::RSA_PrivateKey server_private_key()
-   {
-   return
-      {
-      Botan::BigInt("0xE435FB7CC83737756DACEA96AB7F59A2CC1069DB7DEB190E17E33A532B273F30A327AA0AAABC58CD67466AF9845FADC675FE094AF92C4BD1F2C1BC33DD2E0515"),
-      Botan::BigInt("0xCABD3BC0E0438664C8D4CC9F99977A94D9BBFEAD8E43870ABAE3F7EB8B4E0EEE8AF1D9B4719BA6196CF2CBBAEEEBF8B3490AFE9E9FFA74A88AA51FC645629303"),
-      Botan::BigInt("0x010001")
-      };
    }
 
 Botan::X509_Certificate server_certificate()
@@ -108,6 +99,47 @@ Botan::X509_Certificate server_certificate()
                 "2a99be5c3eb7107c3c54e9b9eb2bd5203b1c3b84e0a8b2f759409ba3eac9d91d"
                 "402dcc0cc8f8961229ac9187b42b4de10000")
           );
+   }
+
+Botan::X509_Certificate client_certificate()
+{
+   // self-signed certificate with an RSA1024 public key
+   //
+   //   [...]
+   //   Issuer: CN=client
+   //   Validity
+   //       Not Before: Jul 30 01:23:59 2016 GMT
+   //       Not After : Jul 30 01:23:59 2026 GMT
+   //   Subject: CN=client
+   //   [...]
+   //   X509v3 extensions:
+   //        X509v3 Basic Constraints:
+   //            CA:FALSE
+   //   [...]
+   return Botan::X509_Certificate(
+             Botan::hex_decode("30 82"
+            "01 b2 30 82 01 1b a0 03 02 01 02 02 01 01 30 0d 06 09 2a 86 48"
+            "86 f7 0d 01 01 0b 05 00 30 11 31 0f 30 0d 06 03 55 04 03 13 06"
+            "63 6c 69 65 6e 74 30 1e 17 0d 31 36 30 37 33 30 30 31 32 33 35"
+            "39 5a 17 0d 32 36 30 37 33 30 30 31 32 33 35 39 5a 30 11 31 0f"
+            "30 0d 06 03 55 04 03 13 06 63 6c 69 65 6e 74 30 81 9f 30 0d 06"
+            "09 2a 86 48 86 f7 0d 01 01 01 05 00 03 81 8d 00 30 81 89 02 81"
+            "81 00 c3 81 75 e0 04 a6 8d 09 3f 82 3b 9c 37 9d 20 1f bc 0b b7"
+            "a1 c7 91 90 5e 3f bf 76 84 7e 44 e7 51 eb bc d3 60 bd 94 5c 81"
+            "e5 22 2b cc 88 46 d3 a8 a0 f9 3e 9b f5 be ba bd 92 ed f1 de 1f"
+            "f1 90 21 70 3e 7a b6 c0 90 15 13 f9 7e 39 b1 11 f0 9c 93 48 97"
+            "1c 7b 21 19 84 a7 54 cd 45 fe 09 5a f0 ea 42 36 82 9b cc f7 a7"
+            "fe 9b 28 88 e7 8a b4 77 69 0a 5b 9e 1c cb e9 1c 6a 4a 0f 97 a7"
+            "e0 28 42 01 02 03 01 00 01 a3 1a 30 18 30 09 06 03 55 1d 13 04"
+            "02 30 00 30 0b 06 03 55 1d 0f 04 04 03 02 07 80 30 0d 06 09 2a"
+            "86 48 86 f7 0d 01 01 0b 05 00 03 81 81 00 1a 7a 5a 01 85 32 b0"
+            "22 af 07 67 d4 86 16 0c ff 2d 16 7a 19 15 d2 38 35 b5 45 94 91"
+            "6d c6 80 be 5d 2e 62 60 76 c5 d5 27 22 eb cc 77 5d 7d 99 f9 80"
+            "be 2f c9 4d 34 ac f6 cc 00 ba 90 cb cf b0 60 8a a1 e7 e3 97 1e"
+            "f0 c0 7a 41 d4 7a d8 34 5d 1f 81 fe 41 8a 1c f4 10 54 42 9f d2"
+            "17 bd 77 7d c1 cf 08 f0 5d f9 07 99 c6 59 36 1e 0f 1a 8e e4 ac"
+            "0f 78 97 42 0b db c8 23 da 80 a2 f2 ba 23 08 1c")
+             );
    }
 
 
@@ -216,7 +248,23 @@ class Test_TLS_13_Callbacks : public Botan::TLS::Callbacks
          const std::vector<uint8_t>& msg) override
          {
          count_callback_invocation("tls_sign_message");
-         return Callbacks::tls_sign_message(key, rng, emsa, format, msg);
+         // return Callbacks::tls_sign_message(key, rng, emsa, format, msg);
+
+         // TODO: check padding and signature format; otherwise it'll remain untested
+         //       what Certificate_Verify_13 does there
+
+         // Expected signature for the {client} CertificateVerify message from RFC 8448 6.
+         // The private key is not available from the RFC, so we need to hardcode the result.
+         static std::vector<uint8_t> client_auth_signature = Botan::hex_decode(
+            "18 6b 22"
+            "23 b5 03 a7 59 c3 5d ba 0e 97 21 b4 b5 79 13 8d 5f 0f 5e 6e c7"
+            "fe aa f2 7f 3a d7 f3 86 c2 c7 bd 7c b2 be 52 fb f5 ed 83 93 f4"
+            "06 ee 79 36 96 92 ec 7a c6 95 65 1d 85 82 19 e6 72 a8 eb 7b 2a"
+            "67 7b 64 0b 46 ab 63 0e dc 5f 3f 2f 82 72 b9 c0 d9 06 f8 1f 84"
+            "dd c5 b8 c7 bc f9 55 c7 8a 3c f9 9e 50 16 f7 3e 04 eb 7d fc b2"
+            "88 33 f1 3e 8f 75 ec 2f f3 58 1e 2f 09 8a d4 15 7f d6 d6 ad");
+         BOTAN_UNUSED(key, rng, emsa, format, msg);
+         return client_auth_signature;
          }
 
 
@@ -334,10 +382,10 @@ class Test_TLS_13_Callbacks : public Botan::TLS::Callbacks
       mutable std::map<std::string, unsigned int> m_callback_invocations;
    };
 
-class Test_Server_Credentials : public Botan::Credentials_Manager
+class Test_Client_Credentials : public Botan::Credentials_Manager
    {
    public:
-      Test_Server_Credentials() : m_key(server_private_key()) {}
+      Test_Client_Credentials() : m_bogus_key(create_private_key("RSA", Test::rng(), "1024")) {}
 
       std::vector<Botan::Certificate_Store*>
       trusted_certificate_authorities(const std::string& type, const std::string& context) override
@@ -352,7 +400,7 @@ class Test_Server_Credentials : public Botan::Credentials_Manager
          const std::string& context) override
          {
          BOTAN_UNUSED(cert_key_types, type, context);
-         return { server_certificate() };
+         return { client_certificate() };
          }
 
       Botan::Private_Key* private_key_for(const Botan::X509_Certificate& cert,
@@ -360,13 +408,13 @@ class Test_Server_Credentials : public Botan::Credentials_Manager
                                           const std::string& context) override
          {
          BOTAN_UNUSED(cert, type, context);
+         return m_bogus_key.get();
          // return the private key associated with the leaf certificate,
          // in this case the one associated with "botan.randombit.net.crt"
-         return &m_key;
          }
 
    private:
-      Botan::RSA_PrivateKey m_key;
+      std::unique_ptr<Private_Key> m_bogus_key;
    };
 
 class RFC8448_Text_Policy : public Botan::TLS::Text_Policy
@@ -465,29 +513,11 @@ class TLS_Context
 
    protected:
       Test_TLS_13_Callbacks   m_callbacks;
-      Test_Server_Credentials m_creds;
+      Test_Client_Credentials m_creds;
 
       std::unique_ptr<Botan::RandomNumberGenerator> m_rng;
       Botan::TLS::Session_Manager_In_Memory         m_session_mgr;
       RFC8448_Text_Policy                           m_policy;
-   };
-
-class Server_Context : public TLS_Context
-   {
-   public:
-      Server_Context(std::unique_ptr<Botan::RandomNumberGenerator> rng_in,
-                     RFC8448_Text_Policy policy,
-                     Modify_Exts_Fn modify_exts_cb)
-         : TLS_Context(std::move(rng_in), std::move(policy), std::move(modify_exts_cb))
-         , server(m_callbacks, m_session_mgr, m_creds, m_policy, *m_rng)
-         {}
-
-      void send(const std::vector<uint8_t>& data) override
-         {
-         server.send(data.data(), data.size());
-         }
-
-      Botan::TLS::Server server;
    };
 
 class Client_Context : public TLS_Context
@@ -977,6 +1007,135 @@ class Test_TLS_RFC8448 final : public Test
          return result;
          }
 
+      static Test::Result client_authentication()
+         {
+         Test::Result result("Client Authentication (Client side)");
+
+         auto rng = std::make_unique<Botan_Tests::Fixed_Output_RNG>("");
+         rng->add_entropy(std::vector<uint8_t>(32).data(), 32);  // used by session mgr for session key
+
+         // for client hello random
+         add_entropy(*rng, "6a472236328b83af40386d3a3e1f1ce624fa4ed89ab865a4ff0f4144ce3ae233");
+
+         // for KeyShare extension (x25519 private key)
+         add_entropy(*rng, "c040b2bb8f3addd20fd4058c547003a3c6f9c1cd915d5e535c87d8d191aaf071");
+
+         auto add_extensions_and_sort = [&](Botan::TLS::Extensions& exts, Botan::TLS::Connection_Side side)
+            {
+            add_psk_exchange_modes(exts);
+            add_renegotiation_extension(exts);
+            sort_extensions(exts, side);
+            };
+
+         Client_Context ctx(std::move(rng), read_tls_policy("rfc8448_1rtt"), add_extensions_and_sort);
+
+         const auto client_hello = Botan::hex_decode(
+                  "16 03 01 00 c0 01 00 00 bc 03 03 6a"
+                  "47 22 36 32 8b 83 af 40 38 6d 3a 3e 1f 1c e6 24 fa 4e d8 9a b8"
+                  "65 a4 ff 0f 41 44 ce 3a e2 33 00 00 06 13 01 13 03 13 02 01 00"
+                  "00 8d 00 00 00 0b 00 09 00 00 06 73 65 72 76 65 72 ff 01 00 01"
+                  "00 00 0a 00 14 00 12 00 1d 00 17 00 18 00 19 01 00 01 01 01 02"
+                  "01 03 01 04 00 33 00 26 00 24 00 1d 00 20 08 9c c2 67 1f 73 8d"
+                  "9a 67 1e 5b 2e 46 49 81 d0 5b 76 e3 61 aa 22 ae a9 1f 1d 49 ca"
+                  "10 a7 a3 62 00 2b 00 03 02 03 04 00 0d 00 20 00 1e 04 03 05 03"
+                  "06 03 02 03 08 04 08 05 08 06 04 01 05 01 06 01 02 01 04 02 05"
+                  "02 06 02 02 02 00 2d 00 02 01 01 00 1c 00 02 40 01");
+
+         result.test_eq("Client Hello", ctx.pull_send_buffer(), client_hello);
+
+         const auto server_hello = Botan::hex_decode(
+                  "16 03 03 00 5a 02 00 00 56 03 03 3b"
+                  "50 fd f1 c3 d5 72 e4 0e 68 95 3e 7f ff 4e 27 58 45 9c 59 af a0"
+                  "58 2c 0e a0 32 87 42 55 fe 6e 00 13 01 00 00 2e 00 33 00 24 00"
+                  "1d 00 20 6c 2e 50 e8 65 91 9a 6b 5a 12 df af 91 8f 92 b4 42 56"
+                  "7b 0f 89 bc 54 47 8c 69 21 36 66 58 f0 62 00 2b 00 02 03 04");
+
+         const auto encrypted_server_handshake = Botan::hex_decode(
+                  "17 03 03 02 16 6d 0a 7a c0 79 b3 2a"
+                  "94 aa 68 c4 e2 89 3e 8b d0 d3 c1 85 f5 49 c2 36 fb bc e3 d6 47"
+                  "f0 8f 3c 94 a2 bf 42 4d 87 08 88 36 05 ad 89 55 f9 77 18 b0 21"
+                  "3d ea d1 3d fb 23 eb b8 38 1d a5 82 75 66 12 bc b5 a5 d4 08 47"
+                  "71 9f be 9f 17 9b fa e6 56 f3 ec fd 59 a4 c0 d3 51 32 ce 41 8a"
+                  "7e 46 f6 b6 a6 06 22 f8 a6 c0 6b 28 d8 33 60 16 35 63 be 9c 37"
+                  "f9 7e b9 02 32 69 24 a7 2b 3e d8 c8 38 12 77 d1 58 1c ab 9c 37"
+                  "15 ac 24 01 39 84 67 ad 7e bf ab 3d 0c 34 19 e7 50 10 4f 7d 62"
+                  "c5 02 79 01 f2 e4 cd 4c a5 b8 07 1e b0 3d 3c 73 2d 83 21 50 66"
+                  "df c4 d2 91 d4 c1 ff 3b 8d 7e 42 98 f6 77 d4 d5 1d ea 11 68 d8"
+                  "f1 6c b2 7b a4 02 66 31 3a 1f ed f9 e2 3c c7 7f 76 54 50 f9 e9"
+                  "6f 05 d0 8f 3d a2 45 b1 4d 49 46 f0 7e c8 1e ed 6d 56 f2 6b d5"
+                  "74 f0 b7 f7 c7 04 70 37 c1 6f ce 3b 23 75 4e 66 2f ad 73 e2 b7"
+                  "21 3f 6a f2 96 76 9c 99 a1 d3 8e 62 32 e0 ec 8d c4 f8 4d 6a a6"
+                  "f7 de 38 87 be 00 57 86 2f 90 18 e0 ab 39 67 05 aa 40 90 ab 5f"
+                  "2d ff 63 25 a5 57 e7 32 0d 4e ff d4 6b b4 f9 97 d1 63 20 7c ce"
+                  "66 65 29 4a a4 46 55 41 e3 fe 37 ee 73 50 65 9e a5 50 d6 dc b6"
+                  "af 3c 51 88 52 c7 a1 4c 3c c1 5b c3 2b 32 73 bd f1 75 1d a1 84"
+                  "20 31 35 b1 17 d3 00 20 4f b1 2d 58 ca 9a c3 4b 68 ec a2 70 30"
+                  "83 2f 7a 4b 46 d2 a5 57 57 f6 3f e8 f6 e8 5a c4 74 69 e6 19 8d"
+                  "a8 8a 64 58 6b f2 3c 69 59 0d e8 22 26 3b e7 5f d8 36 84 72 40"
+                  "c4 8f 8c 14 5c d6 bd 69 89 62 e7 ed c2 34 eb e5 92 31 35 1e ef"
+                  "8d 76 52 cf 3b 08 ab 3a f6 e5 ec 74 c5 8a 8d a3 4b 39 f9 b0 d6"
+                  "c4 27 9a 9a 1f 82 07 17 29 e7 05 9d d7 f7 b9 5b 94 33 c4 68 4c"
+                  "e1 89 1a 6d 33 43 2d 52 ed db 0b 8c ee 91 81 d4 03 ec cc 12 99"
+                  "1f 1a d4 aa 62 c3 60 49 71 3a 7b b1 35 fd da 66 61 a0 5a 93 f8"
+                  "c1 6f");
+         ctx.client.received_data(Botan::concat(server_hello, encrypted_server_handshake));
+
+         const auto client_auth_and_finished = Botan::hex_decode(
+                  "17 03 03 02 80 b4 6a 63 93 4e 67 38"
+                  "41 ab af 26 74 03 bc 67 7f 6b 6d 2a 1e 2f 12 bb 5f 62 68 3b fe"
+                  "36 a8 26 73 f0 6d 62 87 dd d6 09 bc f2 f5 fd 32 25 92 3d 24 af"
+                  "3c 76 68 2c 18 0e e5 71 a1 7c a4 bf be 2f 51 0d c9 a0 e1 fc a5"
+                  "cf f2 ce e8 7d 11 cb 53 1a 6e f9 0b f5 30 9a 6b 63 bb bc 0b 88"
+                  "ea 45 10 3a 43 04 09 15 43 85 9f a1 1e c0 32 ed 87 34 44 cd 51"
+                  "85 ea d5 f6 a7 64 20 f0 f0 28 6a ce f8 02 c8 e4 78 8c 23 27 5f"
+                  "1b 06 da 60 0f 4a 7d ec d0 bc 59 d7 be f1 0e 64 9a e3 26 90 39"
+                  "7f c3 d4 ed 6f 30 f8 01 d8 cd 56 9b 71 ad 4f a0 5e a7 cf 2a c2"
+                  "df a1 50 d2 20 50 5d 40 11 b3 4d 09 d5 38 53 eb a6 1a 10 1e 4f"
+                  "8d ca 47 d8 17 1a 88 4b 19 25 9a 3d d4 8c 5a c1 41 98 3e dc 77"
+                  "81 4d 25 e7 f6 6b bb db 90 96 83 92 66 e0 65 61 82 8e cf b2 7e"
+                  "af d4 e9 e8 1a 0b 96 e3 bf a4 2d ae 5a d8 03 59 b9 a6 66 14 02"
+                  "c3 a2 10 41 77 03 01 06 db d8 f6 5b b6 a0 15 9d 51 2e b1 3a f2"
+                  "2a 25 9f 31 3b d5 8c 2e 21 fe 05 3d 57 f2 a9 62 b0 a4 ea 68 2c"
+                  "96 f7 0b 79 b5 60 13 61 92 82 3b 27 be 6a 2f b7 b1 c7 51 cc c0"
+                  "e3 30 36 15 54 14 85 b7 b3 07 b4 23 33 2c 11 ef a8 0b 72 f9 b8"
+                  "0a 53 e5 3f 7b b3 8a 3a f4 c5 9f 80 08 ba d0 54 4e 56 14 e6 88"
+                  "ff 57 bc cd 69 35 f8 1f 44 7f 42 0c 1c 1b f4 05 88 18 e9 0b f5"
+                  "dc 71 6c ca e4 25 24 85 6d f8 25 0b cd bd 7a f6 5f 82 dd 53 06"
+                  "1d 02 4f 6d 2f f5 c1 1e 37 92 a9 a7 0e 0e e2 a3 c2 0a 1b 96 8a"
+                  "c3 91 f8 f9 28 31 13 5d 25 24 2a da 2f e2 41 c2 65 3e c9 96 33"
+                  "9d fa 12 df ae 7a 33 73 df 88 b0 7c a2 7a ef 6d c2 66 a2 5f 13"
+                  "f7 5c 76 03 9c 1f 46 fd 7a 53 ae 63 99 c9 99 f4 b2 ae e1 8e 48"
+                  "0d 6d 12 bf ae 22 6b bd c9 2a 6a d5 0b 4d 3b ac 7a bc 3b 36 51"
+                  "eb 5b e5 6f 33 bf 41 12 7b 3c a8 86 dc 71 4a 50 d1 49 03 57 bd"
+                  "40 d9 fd 6b e4 22 09 a4 dd b9 eb b2 98 7e 29 f1 20 f0 58 14 61"
+                  "4d 2c 79 32 00 15 b4 61 fe 73 24 44 76 70 a1 af 5f 65 ca ed 15"
+                  "b4 74 ab 7f aa 49 50 16 ad f8 08 e5 3b 94 ef 54 af bb 0e 0a 3a"
+                  "27 32 ab 59 7f 7d 59 23 c7 73 86 aa 51 24 73 1f 8c c7 3e 70 3b"
+                  "34 1c 17 5a 45 49 39 a7 7a b6 43 13 c1 5c f3 fe 03 c4 f3 38 42"
+                  "56 49 76");
+
+         result.test_eq("Client Auth and Finished", ctx.pull_send_buffer(), client_auth_and_finished);
+
+         return result;
+         // ctx.client.close();
+
+         // const auto client_close_notify = Botan::hex_decode(
+         //          "17 03 03 00 13 e4 ad 7d 44 c2 92 45"
+         //          "33 9d 35 59 62 c7 79 b8 9e f4 4c 58");
+
+         // result.test_eq("Client close_notify", ctx.pull_send_buffer(), client_close_notify);
+
+         // const auto server_close_notify = Botan::hex_decode(
+         //    "17 03 03 00 13 1d ec c5 d6 e6 4b ba"
+         //    "8a 6f 21 b4 fd 07 74 97 da 2a 90 cb");
+
+         // ctx.client.received_data(server_close_notify);
+
+         // result.confirm("connection closed", ctx.client.is_closed());
+
+         // return result;
+      }
+
       static Test::Result middlebox_compatibility()
          {
          Test::Result result("Middlebox Compatibility Mode (Client side)");
@@ -1104,6 +1263,7 @@ class Test_TLS_RFC8448 final : public Test
             {
             simple_1_rtt_client_hello(),
             hello_retry_request(),
+            client_authentication(),
             middlebox_compatibility()
             };
          }

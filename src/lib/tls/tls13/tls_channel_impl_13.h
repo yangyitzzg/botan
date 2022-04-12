@@ -149,6 +149,9 @@ class Channel_Impl_13 : public Channel_Impl
       void send_post_handshake_message(const Post_Handshake_Message_13 message);
       void send_dummy_change_cipher_spec();
 
+      void send_buffered_handshake_messages();
+      std::vector<uint8_t> m_msg_buf;
+
       Callbacks& callbacks() const { return m_callbacks; }
       Session_Manager& session_manager() { return m_session_manager; }
       Credentials_Manager& credentials_manager() { return m_credentials_manager; }
