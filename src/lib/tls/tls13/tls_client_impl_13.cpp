@@ -37,14 +37,15 @@ Client_Impl_13::Client_Impl_13(Callbacks& callbacks,
       { expect_downgrade(info); }
 #endif
 
-   send_handshake_message(m_handshake_state.sent(Client_Hello_13(
+   auto msg = send_handshake_message(m_handshake_state.sent(Client_Hello_13(
                              policy,
                              callbacks,
                              rng,
                              m_info.hostname(),
                              next_protocols)));
 
-   send_buffered_handshake_messages();
+   if(expects_downgrade())
+      { preserve_client_hello(msg); }
 
    // RFC 8446 Appendix D.4
    //    If not offering early data, the client sends a dummy change_cipher_spec
@@ -313,8 +314,6 @@ void Client_Impl_13::handle(const Hello_Retry_Request& hrr)
 
    send_handshake_message(ch);
 
-   send_buffered_handshake_messages();
-
    // RFC 8446 4.1.4
    //    If a client receives a second HelloRetryRequest in the same connection [...],
    //    it MUST abort the handshake with an "unexpected_message" alert.
@@ -429,6 +428,8 @@ void Client_Impl_13::handle(const Finished_13& finished_msg)
                            m_transcript_hash.previous()))
       { throw TLS_Exception(Alert::DECRYPT_ERROR, "Finished message didn't verify"); }
 
+   auto flight = aggregate_handshake_messages();
+
    // send the client certificate if it was requested
    if(m_handshake_state.has_certificate_request())
       {
@@ -444,7 +445,7 @@ void Client_Impl_13::handle(const Finished_13& finished_msg)
             "tls-client",
             m_info.hostname());
 
-      send_handshake_message(m_handshake_state.sent(Certificate_13(std::move(client_certs))));
+      flight.add(m_handshake_state.sent(Certificate_13(std::move(client_certs))));
 
       BOTAN_ASSERT_NOMSG(!client_certs.empty());
 
@@ -455,16 +456,16 @@ void Client_Impl_13::handle(const Finished_13& finished_msg)
 
       BOTAN_ASSERT_NOMSG(private_key);
 
-      send_handshake_message(m_handshake_state.sent(Certificate_Verify_13(
+      flight.add(m_handshake_state.sent(Certificate_Verify_13(
          m_transcript_hash.current(), *private_key, policy(), callbacks(), rng()
       )));
       }
 
    // send client finished handshake message (still using handshake traffic secrets)
-   send_handshake_message(m_handshake_state.sent(Finished_13(m_cipher_state.get(),
-                          m_transcript_hash.current())));
+   flight.add(m_handshake_state.sent(Finished_13(m_cipher_state.get(),
+                                                 m_transcript_hash.current())));
 
-   send_buffered_handshake_messages();
+   flight.send();
 
    // derives the application traffic secrets and _replaces_ the handshake traffic secrets
    // Note: this MUST happen AFTER the client finished message was sent!
