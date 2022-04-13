@@ -1124,24 +1124,23 @@ class Test_TLS_RFC8448 final : public Test
 
          result.test_eq("Client Auth and Finished", ctx.pull_send_buffer(), client_auth_and_finished);
 
+         ctx.client.close();
+
+         const auto client_close_notify = Botan::hex_decode(
+            "17 03 03 00 13 e4 ad 7d 44 c2 92 45"
+            "33 9d 35 59 62 c7 79 b8 9e f4 4c 58");
+
+         result.test_eq("Client close_notify", ctx.pull_send_buffer(), client_close_notify);
+
+         const auto server_close_notify = Botan::hex_decode(
+            "17 03 03 00 13 1d ec c5 d6 e6 4b ba"
+            "8a 6f 21 b4 fd 07 74 97 da 2a 90 cb");
+
+         ctx.client.received_data(server_close_notify);
+
+         result.confirm("connection closed", ctx.client.is_closed());
+
          return result;
-         // ctx.client.close();
-
-         // const auto client_close_notify = Botan::hex_decode(
-         //          "17 03 03 00 13 e4 ad 7d 44 c2 92 45"
-         //          "33 9d 35 59 62 c7 79 b8 9e f4 4c 58");
-
-         // result.test_eq("Client close_notify", ctx.pull_send_buffer(), client_close_notify);
-
-         // const auto server_close_notify = Botan::hex_decode(
-         //    "17 03 03 00 13 1d ec c5 d6 e6 4b ba"
-         //    "8a 6f 21 b4 fd 07 74 97 da 2a 90 cb");
-
-         // ctx.client.received_data(server_close_notify);
-
-         // result.confirm("connection closed", ctx.client.is_closed());
-
-         // return result;
       }
 
       static Test::Result middlebox_compatibility()

@@ -22,7 +22,7 @@ namespace Botan::TLS {
 */
 class Channel_Impl_13 : public Channel_Impl
    {
-   private:
+   protected:
       /**
        * Helper class to coalesce handshake messages into a single TLS record of type
        * 'Handshake'. This is used entirely internally in the Channel, Client and Server
@@ -64,7 +64,6 @@ class Channel_Impl_13 : public Channel_Impl
             Handshake_Layer&       m_handshake_layer;
             Transcript_Hash_State& m_transcript_hash;
          };
-
 
    public:
       /**

@@ -82,6 +82,8 @@ class Client_Impl_13 : public Channel_Impl_13
       void handle(const New_Session_Ticket_13& new_session_ticket);
       void handle(const Key_Update& key_update);
 
+      void client_auth(Channel_Impl_13::AggregatedMessages& flight);
+
    private:
       const Server_Information m_info;
 

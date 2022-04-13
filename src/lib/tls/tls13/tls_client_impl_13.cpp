@@ -418,6 +418,44 @@ void Client_Impl_13::handle(const Certificate_Verify_13& certificate_verify_msg)
    m_transitions.set_expected_next(FINISHED);
    }
 
+void Client_Impl_13::client_auth(Channel_Impl_13::AggregatedMessages& flight)
+   {
+   const auto& cert_request = m_handshake_state.certificate_request();
+
+   std::vector<std::string> peer_allowed_signature_algos;
+   for (const auto& scheme : cert_request.signature_schemes())
+      { peer_allowed_signature_algos.push_back(signature_algorithm_of_scheme(scheme)); }
+
+   std::vector<X509_Certificate> client_certs = credentials_manager().find_cert_chain(
+         peer_allowed_signature_algos,
+         cert_request.acceptable_CAs(),
+         "tls-client",
+         m_info.hostname());
+
+   flight.add(m_handshake_state.sending(Certificate_13(std::move(client_certs))));
+
+   // TODO: empty certs are allowed if no certificate is found -- don't fail
+   BOTAN_ASSERT_NOMSG(!client_certs.empty());
+
+   Private_Key* private_key = credentials_manager().private_key_for(
+         m_handshake_state.client_certificate().leaf(),
+         "tls-client",
+         m_info.hostname());
+
+
+   BOTAN_ASSERT_NOMSG(private_key);
+
+   flight.add(m_handshake_state.sending(Certificate_Verify_13(
+      cert_request.signature_schemes(),
+      Connection_Side::CLIENT,
+      *private_key,
+      policy(),
+      m_transcript_hash.current(),
+      callbacks(),
+      rng()
+   )));
+   }
+
 void Client_Impl_13::handle(const Finished_13& finished_msg)
    {
    // RFC 8446 4.4.4
@@ -428,46 +466,14 @@ void Client_Impl_13::handle(const Finished_13& finished_msg)
                            m_transcript_hash.previous()))
       { throw TLS_Exception(Alert::DECRYPT_ERROR, "Finished message didn't verify"); }
 
+   // save the current transcript hash as client auth might update the hash multiple times
+   const auto th_server_finished = m_transcript_hash.current();
+
    auto flight = aggregate_handshake_messages();
 
    // send the client certificate if it was requested
    if(m_handshake_state.has_certificate_request())
-      {
-      const auto& cert_request = m_handshake_state.certificate_request();
-
-      std::vector<std::string> peer_allowed_signature_algos;
-      for (const auto& scheme : cert_request.signature_schemes())
-         { peer_allowed_signature_algos.push_back(signature_algorithm_of_scheme(scheme)); }
-
-      std::vector<X509_Certificate> client_certs = credentials_manager().find_cert_chain(
-            peer_allowed_signature_algos,
-            cert_request.acceptable_CAs(),
-            "tls-client",
-            m_info.hostname());
-
-      flight.add(m_handshake_state.sending(Certificate_13(std::move(client_certs))));
-
-      // TODO: empty certs are allowed if no certificate is found -- don't fail
-      BOTAN_ASSERT_NOMSG(!client_certs.empty());
-
-      Private_Key* private_key = credentials_manager().private_key_for(
-            m_handshake_state.client_certificate().leaf(),
-            "tls-client",
-            m_info.hostname());
-
-
-      BOTAN_ASSERT_NOMSG(private_key);
-
-      flight.add(m_handshake_state.sending(Certificate_Verify_13(
-         cert_request.signature_schemes(),
-         Connection_Side::CLIENT,
-         *private_key,
-         policy(),
-         m_transcript_hash.current(),
-         callbacks(),
-         rng()
-      )));
-      }
+      { client_auth(flight); }
 
    // send client finished handshake message (still using handshake traffic secrets)
    flight.add(m_handshake_state.sending(Finished_13(m_cipher_state.get(),
@@ -477,7 +483,7 @@ void Client_Impl_13::handle(const Finished_13& finished_msg)
 
    // derives the application traffic secrets and _replaces_ the handshake traffic secrets
    // Note: this MUST happen AFTER the client finished message was sent!
-   m_cipher_state->advance_with_server_finished(m_transcript_hash.previous());
+   m_cipher_state->advance_with_server_finished(th_server_finished);
    m_cipher_state->advance_with_client_finished(m_transcript_hash.current());
 
    // TODO: save session and invoke tls_session_established callback
