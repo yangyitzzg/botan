@@ -20,29 +20,23 @@
 
 namespace Botan::TLS {
 
-/*
-* Create a new Certificate Verify message
-*/
-Certificate_Verify_12::Certificate_Verify_12(Handshake_IO& io,
-                                             Handshake_State& state,
-                                             const Policy& policy,
-                                             RandomNumberGenerator& rng,
-                                             const Private_Key* priv_key)
-   {
-   BOTAN_ASSERT_NONNULL(priv_key);
-
-   std::pair<std::string, Signature_Format> format =
-      state.choose_sig_format(*priv_key, m_scheme, true, policy);
-
-   m_signature =
-      state.callbacks().tls_sign_message(*priv_key, rng, format.first, format.second,
-                                         state.hash().get_contents());
-
-   state.hash().update(io.send(*this));
-   }
-
-
 namespace {
+
+std::vector<uint8_t> message(Connection_Side side, const Transcript_Hash& hash)
+   {
+   std::vector<uint8_t> msg(64, 0x20);
+   msg.reserve(64 + 32 + 1 + hash.size());
+
+   const std::string context_string = (side == Botan::TLS::Connection_Side::SERVER)
+                                      ? "TLS 1.3, server CertificateVerify"
+                                      : "TLS 1.3, client CertificateVerify";
+
+   msg.insert(msg.end(), context_string.cbegin(), context_string.cend());
+   msg.push_back(0x00);
+
+   msg.insert(msg.end(), hash.cbegin(), hash.cend());
+   return msg;
+   }
 
 Signature_Scheme choose_signature_scheme(
       const Private_Key& key,
@@ -66,6 +60,30 @@ Signature_Scheme choose_signature_scheme(
 
 }
 
+/*
+* Create a new Certificate Verify message for TLS 1.2
+*/
+Certificate_Verify_12::Certificate_Verify_12(Handshake_IO& io,
+                                             Handshake_State& state,
+                                             const Policy& policy,
+                                             RandomNumberGenerator& rng,
+                                             const Private_Key* priv_key)
+   {
+   BOTAN_ASSERT_NONNULL(priv_key);
+
+   std::pair<std::string, Signature_Format> format =
+      state.choose_sig_format(*priv_key, m_scheme, true, policy);
+
+   m_signature =
+      state.callbacks().tls_sign_message(*priv_key, rng, format.first, format.second,
+                                         state.hash().get_contents());
+
+   state.hash().update(io.send(*this));
+   }
+
+/*
+* Create a new Certificate Verify message for TLS 1.3
+*/
 Certificate_Verify_13::Certificate_Verify_13(
       const std::vector<Signature_Scheme>& peer_allowed_schemes,
       Connection_Side whoami,
@@ -83,7 +101,7 @@ Certificate_Verify_13::Certificate_Verify_13(
                                  rng,
                                  padding_string_for_scheme(m_scheme),
                                  signature_format_of_scheme(m_scheme),
-                                 hash);
+                                 message(m_side, hash));
    }
 
 /*
@@ -195,23 +213,11 @@ bool Certificate_Verify_13::verify(const X509_Certificate& cert,
    if(algorithm_identifier_for_scheme(m_scheme) != cert.subject_public_key_algo())
       { throw TLS_Exception(Alert::ILLEGAL_PARAMETER, "Signature algorithm does not match certificate's public key"); }
 
-   std::vector<uint8_t> msg(64, 0x20);
-   msg.reserve(64 + 32 + 1 + transcript_hash.size());
-
-   const std::string context_string = (m_side == Botan::TLS::Connection_Side::SERVER)
-                                      ? "TLS 1.3, server CertificateVerify"
-                                      : "TLS 1.3, client CertificateVerify";
-
-   msg.insert(msg.end(), context_string.cbegin(), context_string.cend());
-   msg.push_back(0x00);
-
-   msg.insert(msg.end(), transcript_hash.cbegin(), transcript_hash.cend());
-
    const bool signature_valid =
       callbacks.tls_verify_message(*key,
                                    padding_string_for_scheme(m_scheme),
                                    signature_format_of_scheme(m_scheme),
-                                   msg,
+                                   message(m_side, transcript_hash),
                                    m_signature);
 
 #if defined(BOTAN_UNSAFE_FUZZER_MODE)

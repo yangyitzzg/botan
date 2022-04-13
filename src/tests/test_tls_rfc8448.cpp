@@ -248,23 +248,31 @@ class Test_TLS_13_Callbacks : public Botan::TLS::Callbacks
          const std::vector<uint8_t>& msg) override
          {
          count_callback_invocation("tls_sign_message");
-         // return Callbacks::tls_sign_message(key, rng, emsa, format, msg);
 
-         // TODO: check padding and signature format; otherwise it'll remain untested
-         //       what Certificate_Verify_13 does there
+         const auto rfc8448_client_auth_msg = Botan::hex_decode(
+            "20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20"
+            "20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20"
+            "20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 54 4c"
+            "53 20 31 2e 33 2c 20 63 6c 69 65 6e 74 20 43 65 72 74 69 66 69 63"
+            "61 74 65 56 65 72 69 66 79 00 44 02 6e f3 33 1b c8 64 da 1c 08 ee"
+            "32 e1 96 d9 3c c2 c5 d4 87 e4 7e 95 7d 98 0e 7c 3d 80 1b 9a");
 
-         // Expected signature for the {client} CertificateVerify message from RFC 8448 6.
-         // The private key is not available from the RFC, so we need to hardcode the result.
-         static std::vector<uint8_t> client_auth_signature = Botan::hex_decode(
-            "18 6b 22"
+         if(msg == rfc8448_client_auth_msg)
+            {
+            // TODO: check padding and signature format; otherwise it'll remain untested
+            //       what Certificate_Verify_13 does there
+
+            // Expected signature for the {client} CertificateVerify message from RFC 8448 6.
+            return Botan::hex_decode("18 6b 22"
             "23 b5 03 a7 59 c3 5d ba 0e 97 21 b4 b5 79 13 8d 5f 0f 5e 6e c7"
             "fe aa f2 7f 3a d7 f3 86 c2 c7 bd 7c b2 be 52 fb f5 ed 83 93 f4"
             "06 ee 79 36 96 92 ec 7a c6 95 65 1d 85 82 19 e6 72 a8 eb 7b 2a"
             "67 7b 64 0b 46 ab 63 0e dc 5f 3f 2f 82 72 b9 c0 d9 06 f8 1f 84"
             "dd c5 b8 c7 bc f9 55 c7 8a 3c f9 9e 50 16 f7 3e 04 eb 7d fc b2"
             "88 33 f1 3e 8f 75 ec 2f f3 58 1e 2f 09 8a d4 15 7f d6 d6 ad");
-         BOTAN_UNUSED(key, rng, emsa, format, msg);
-         return client_auth_signature;
+            }
+
+         return Callbacks::tls_sign_message(key, rng, emsa, format, msg);
          }
 
 
