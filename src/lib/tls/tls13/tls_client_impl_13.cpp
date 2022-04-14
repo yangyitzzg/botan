@@ -423,8 +423,11 @@ void Client_Impl_13::client_auth(Channel_Impl_13::AggregatedMessages& flight)
    const auto& cert_request = m_handshake_state.certificate_request();
 
    std::vector<std::string> peer_allowed_signature_algos;
-   for (const auto& scheme : cert_request.signature_schemes())
-      { peer_allowed_signature_algos.push_back(signature_algorithm_of_scheme(scheme)); }
+   for (const Signature_Scheme& scheme : cert_request.signature_schemes())
+      {
+      if(signature_scheme_is_known(scheme))
+         peer_allowed_signature_algos.push_back(signature_algorithm_of_scheme(scheme));
+      }
 
    std::vector<X509_Certificate> client_certs = credentials_manager().find_cert_chain(
          peer_allowed_signature_algos,
